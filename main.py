@@ -47,9 +47,9 @@ parser.add_argument('--beta', type=float, default=1.0, help='Cross-view consiste
 parser.add_argument('--dropout', type=float, default=0.1)
 
 parser.add_argument('--testing_shuffle', default=False, help='The testing dataset is shuffled if True')
-parser.add_argument('--factor_divided', default=True, help='The dynamic sparsity gate factor obtained by conditional division if True')
+parser.add_argument('--factor_scaling', default=True, help='The factor obtained by adaptive shrinkage if True, or inverse scaling')
 
-parser.add_argument('--gpu', default=0, type=int, help='GPU device idx')
+parser.add_argument('--gpu', default=1, type=int, help='GPU device idx')
 
 
 args = parser.parse_args()
@@ -145,12 +145,18 @@ def train(model, optimizer, train_loader):
 
     return total_loss
 
-
 def set_default_config():
-    if args.dataset == 'pets':  # v1
+    if args.dataset == 'pets':
         args.lr = 1e-3
         args.batch_size = 100
         args.alpha = 5.0
+        args.beta = 0.5
+        args.dropout = 0.1
+
+    elif args.dataset == 'kitti':
+        args.lr = 1e-3
+        args.batch_size = 100
+        args.alpha = 10.0
         args.beta = 0.5
         args.dropout = 0.1
 
@@ -160,13 +166,6 @@ def set_default_config():
         args.alpha = 5.0
         args.beta = 1.0
         args.dropout = 0.0
-
-    elif args.dataset == 'kitti':
-        args.lr = 1e-3
-        args.batch_size = 100
-        args.alpha = 10.0
-        args.beta = 0.5
-        args.dropout = 0.1
 
     elif args.dataset == 'caltech101':
         args.lr = 1e-3
@@ -186,7 +185,6 @@ def set_default_config():
     elif args.dataset == 'sun397':
         args.lr = 1e-3
         args.batch_size = 5000
-        # args.batch_size = 200
         args.alpha = 10.0
         args.beta = 0.2
         args.dropout = 0.1
@@ -194,7 +192,6 @@ def set_default_config():
     elif args.dataset == 'food101':
         args.lr = 5e-4
         args.batch_size = 5000
-        # args.batch_size = 200
         args.alpha = 20.0
         args.beta = 0.1
         args.dropout = 0.1
@@ -209,15 +206,44 @@ def set_default_config():
     else:
         raise NotImplementedError
 
+def set_validation_config():
+    if args.dataset == 'pets':
+        args.batch_size = 100
+
+    elif args.dataset == 'kitti':
+        args.batch_size = 100
+
+    elif args.dataset == 'flowers':
+        args.batch_size = 500
+
+    elif args.dataset == 'caltech101':
+        args.batch_size = 200
+
+    elif args.dataset == 'eurosat':
+        args.batch_size = 500
+
+    elif args.dataset == 'sun397':
+        # args.batch_size = 5000
+        args.batch_size = 200
+
+    elif args.dataset == 'food101':
+        # args.batch_size = 5000
+        args.batch_size = 200
+
+    elif args.dataset == 'imagenet':
+        args.batch_size = 10000
+        # args.batch_size = 100
+
+    else:
+        raise NotImplementedError
+
 if __name__ == '__main__':
 
-    # set_default_config()
-    # model_parent_dir = './models/models_%s_%d/' % (args.dataset, args.gpu)
-    #
     # num_models = len(args.model_names)
     # assert num_models >= 2, 'The number of models is at least two.'
     #
     # set_seed(args.seed)
+    # model_parent_dir = './models/models_%s_%d/' % (args.dataset, args.gpu)
     # print(f'Loading dataset: {args.dataset}')
     # train_feat_sets, test_feat_sets, train_labels, test_labels = get_data_feats(args.root_dir, args.dataset,
     #                                                                           args.model_names, device)
@@ -229,11 +255,16 @@ if __name__ == '__main__':
     # print(f"The number of classes: {num_class}")
     # print(f'Features of {args.model_names}: ' + ' '.join(str(train_feats.shape) for train_feats in train_feat_sets))
     #
+    # if not args.load_model:
+    #     set_default_config()
+    # else:
+    #     set_validation_config()
+    #
     # train_dataset = CustomSimplifiedDataset(train_feat_sets)
     # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     #
     # test_dataset = CustomDataset(test_feat_sets, torch.from_numpy(test_labels))
-    # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+    # test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=args.testing_shuffle)
     #
     # if not args.load_model:
     #     # torch.cuda.empty_cache()  # for ImageNet with btach_size >= 10000
@@ -242,7 +273,7 @@ if __name__ == '__main__':
     #     model_dir, record_time = create_dir_model(model_parent_dir)
     #     input_dims = [train_feats.shape[1] for train_feats in train_feat_sets]
     #
-    #     model = SAGL(input_dims, num_class, args.dropout, args.factor_divided)
+    #     model = SAGL(input_dims, num_class, args.dropout, args.factor_scaling)
     #     # if args.dataset == "imagenet":
     #     #     model = torch.nn.DataParallel(model, device_ids=[0, 1]) # for ImageNet
     #     model.to(device)
@@ -266,7 +297,7 @@ if __name__ == '__main__':
     #             pbar.set_postfix(loss=f'{total_loss:.3f}', test_acc=f'{acc:.4f}')
     #             with open('SAGL_%s_%s_result_%s.txt' % (args.dataset, '_'.join(args.model_names), args.gpu), 'a+') as f:
     #                 f.write('{} \t {} \t {} \t {:.4f} \t {} \t {} \t {:.1f} \t {:.1f} \t {:.1f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.2f} \n'.format(
-    #                     record_time, args.testing_shuffle, args.factor_divided, args.lr, args.batch_size, epoch, args.alpha, args.beta, args.dropout, acc, nmi, pur, ari, time_cost))
+    #                     record_time, args.testing_shuffle, args.factor_scaling, args.lr, args.batch_size, epoch, args.alpha, args.beta, args.dropout, acc, nmi, pur, ari, time_cost))
     #                 f.flush()
     #
     #             if args.save_model and (epoch == 1 or epoch >= 60):
@@ -278,7 +309,7 @@ if __name__ == '__main__':
     #
     # else:
     #     input_dims = [train_feats.shape[1] for train_feats in train_feat_sets]
-    #     model = SAGL(input_dims, num_class, args.dropout, args.factor_divided)
+    #     model = SAGL(input_dims, num_class, args.dropout, args.factor_scaling)
     #     # if args.dataset == "imagenet":
     #     #     model = torch.nn.DataParallel(model, device_ids=[0, 1]) # for ImageNet
     #     model.to(device)
@@ -342,7 +373,7 @@ if __name__ == '__main__':
                         # torch.cuda.empty_cache()  # for ImageNet
 
                         start_time = time.time()
-                        model = SAGL(input_dims, num_class, args.dropout, args.factor_divided)
+                        model = SAGL(input_dims, num_class, args.dropout, args.factor_scaling)
 
                         # if args.dataset == "imagenet":
                         #     model = torch.nn.DataParallel(model, device_ids=[0, 1]) # for ImageNet
@@ -368,7 +399,7 @@ if __name__ == '__main__':
                                 with open('SAGL_%s_%s_result_%s.txt' % (args.dataset, '_'.join(args.model_names), args.gpu), 'a+') as f:
                                     f.write(
                                         '{} \t {} \t {} \t {:.4f} \t {} \t {} \t {:.1f} \t {:.1f} \t {:.1f} \t {:.2f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.5f} \n'.format(
-                                            record_time, args.testing_shuffle, args.factor_divided, args.lr, args.batch_size, epoch, args.alpha, args.beta,
+                                            record_time, args.testing_shuffle, args.factor_scaling, args.lr, args.batch_size, epoch, args.alpha, args.beta,
                                             args.dropout, acc * 100, nmi, pur, ari, time_cost * 0.001))
                                     f.flush()
 
