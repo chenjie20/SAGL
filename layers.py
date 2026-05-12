@@ -20,12 +20,12 @@ class DynamicSparseGate(nn.Module):
 
 
 class LinearEncoder(nn.Module):
-    def __init__(self, input_dim, feature_dim, dropout=0.0, factor_divided=True, bias=True):
+    def __init__(self, input_dim, feature_dim, dropout=0.0, factor_scaling=True, bias=True):
         super(LinearEncoder, self).__init__()
         self.input_dim = input_dim
         self.feature_dim = feature_dim
         self.rank = feature_dim
-        self.factor_divided = factor_divided
+        self.factor_scaling = factor_scaling
 
         self.U = nn.Parameter(torch.empty(feature_dim, self.rank))
         self.V = nn.Parameter(torch.empty(feature_dim, self.rank))
@@ -65,10 +65,10 @@ class LinearEncoder(nn.Module):
         tau = self.sparsity_gate(x)  # [N, 1]
 
         # sim = sim * (1.0 - tau)
-        if self.factor_divided:
-            sim = sim / (1.0 - tau + self.eps)
+        if self.factor_scaling:
+            sim = sim * (1.0 - tau)
         else:
-            sim = sim * (1.0 - tau) # performance remains competitive
+            sim = sim / (1.0 - tau + self.eps) # performance remains competitive
         # sim = sim.fill_diagonal_(0.0)
 
         # 3. Structured sparse projection
