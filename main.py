@@ -265,8 +265,8 @@ if __name__ == '__main__':
     #             time_cost = time.time() - start_time
     #             pbar.set_postfix(loss=f'{total_loss:.3f}', test_acc=f'{acc:.4f}')
     #             with open('SAGL_%s_%s_result_%s.txt' % (args.dataset, '_'.join(args.model_names), args.gpu), 'a+') as f:
-    #                 f.write('{} \t {:.4f} \t {} \t {} \t {:.1f} \t {:.1f} \t {:.1f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.2f} \n'.format(
-    #                     record_time, args.lr, args.batch_size, epoch, args.alpha, args.beta, args.dropout, acc, nmi, pur, ari, time_cost))
+    #                 f.write('{} \t {} \t {} \t {:.4f} \t {} \t {} \t {:.1f} \t {:.1f} \t {:.1f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.2f} \n'.format(
+    #                     record_time, args.testing_shuffle, args.factor_divided, args.lr, args.batch_size, epoch, args.alpha, args.beta, args.dropout, acc, nmi, pur, ari, time_cost))
     #                 f.flush()
     #
     #             if args.save_model and (epoch == 1 or epoch >= 60):
@@ -278,25 +278,28 @@ if __name__ == '__main__':
     #
     # else:
     #     input_dims = [train_feats.shape[1] for train_feats in train_feat_sets]
-    #     model = SAGL(input_dims, num_class, args.dropout)
+    #     model = SAGL(input_dims, num_class, args.dropout, args.factor_divided)
     #     # if args.dataset == "imagenet":
     #     #     model = torch.nn.DataParallel(model, device_ids=[0, 1]) # for ImageNet
     #     model.to(device)
     #     assert args.model_name.strip() != '', 'The name of the model is empty.'
     #     state_dict = torch.load(f'models/{args.model_name}')
     #     model.load_state_dict(state_dict)
-    #     acc, nmi, pur, ari = test(model, test_loader, test_labels)
+    #     if args.testing_shuffle:
+    #         acc, nmi, pur, ari = test(model, test_loader)
+    #     else:
+    #         acc, nmi, pur, ari = test_seq(model, test_loader, test_labels)
     #     print(f'Final testing cluster acc: {acc:.4f}, nmi: {nmi:.4f}, pur: {pur:.4f}, ari: {ari:.4f}')
 
     #Uncomment the following section to search for appropriate parameters.
-    batch_sizes = np.array([10000, 8000, 5000, 2000], dtype=np.int32)  # for large-scale datasets
+    # batch_sizes = np.array([10000, 8000, 5000, 2000, 1000], dtype=np.int32)  # for large-scale datasets
     # batch_sizes = np.array([2000, 1000, 500, 200], dtype=np.int32) # for medium-scale datasets
-    # batch_sizes = np.array([100, 200, 500, 1000], dtype=np.int32) # for small-scale datasets
+    batch_sizes = np.array([100, 200, 500, 1000], dtype=np.int32) # for small-scale datasets
     learning_rates = np.array([5e-4, 1e-3], dtype=np.float32)
     alphas = np.array([5.0, 10.0, 20.0], dtype=np.float32)
     betas = np.array([1.0, 0.5, 0.2, 0.1, 0.05], dtype=np.float32)
     dropouts = np.array([0.0, 0.1, 0.2, 0.3], dtype=np.float32)
-    # dropouts = np.array([0.2, 0.3, 0.4], dtype=np.float32) for large-scale datasets
+    # dropouts = np.array([0.2, 0.3, 0.4], dtype=np.float32) # for large-scale datasets
 
     set_seed(args.seed)
     print(f'Loading dataset: {args.dataset}')
@@ -304,7 +307,6 @@ if __name__ == '__main__':
                                                                               args.model_names, device)
 
     model_parent_dir = './models/models_%s_%d/' % (args.dataset, args.gpu)
-    model_dir, record_time = create_dir_model(model_parent_dir)
     input_dims = [train_feats.shape[1] for train_feats in train_feat_sets]
     num_class = len(np.unique(train_labels))
     num_train_sample = len(train_labels)
@@ -333,15 +335,18 @@ if __name__ == '__main__':
                 args.alpha = alphas[alpha_idx]
                 for beta_idx in range(betas.shape[0]):
                     args.beta = betas[beta_idx]
-
                     for dropout_idx in range(dropouts.shape[0]):
                         args.dropout = dropouts[dropout_idx]
+                        model_dir, record_time = create_dir_model(model_parent_dir)
 
                         # torch.cuda.empty_cache()  # for ImageNet
+
                         start_time = time.time()
                         model = SAGL(input_dims, num_class, args.dropout, args.factor_divided)
+
                         # if args.dataset == "imagenet":
                         #     model = torch.nn.DataParallel(model, device_ids=[0, 1]) # for ImageNet
+
                         model.to(device)
                         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -362,8 +367,8 @@ if __name__ == '__main__':
                                 pbar.set_postfix(loss=f'{total_loss:.3f}', test_acc=f'{acc:.4f}')
                                 with open('SAGL_%s_%s_result_%s.txt' % (args.dataset, '_'.join(args.model_names), args.gpu), 'a+') as f:
                                     f.write(
-                                        '{} \t {:.4f} \t {} \t {} \t {:.1f} \t {:.1f} \t {:.1f} \t {:.2f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.5f} \n'.format(
-                                            record_time, args.lr, args.batch_size, epoch, args.alpha, args.beta,
+                                        '{} \t {} \t {} \t {:.4f} \t {} \t {} \t {:.1f} \t {:.1f} \t {:.1f} \t {:.2f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.5f} \n'.format(
+                                            record_time, args.testing_shuffle, args.factor_divided, args.lr, args.batch_size, epoch, args.alpha, args.beta,
                                             args.dropout, acc * 100, nmi, pur, ari, time_cost * 0.001))
                                     f.flush()
 
