@@ -49,7 +49,7 @@ parser.add_argument('--dropout', type=float, default=0.1)
 parser.add_argument('--testing_shuffle', default=False, help='The testing dataset is shuffled if True')
 parser.add_argument('--factor_scaling', default=True, help='The factor obtained by adaptive shrinkage if True, or inverse scaling')
 
-parser.add_argument('--gpu', default=1, type=int, help='GPU device idx')
+parser.add_argument('--gpu', default=0, type=int, help='GPU device idx')
 
 
 args = parser.parse_args()
