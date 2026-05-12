@@ -6,11 +6,11 @@ from torch.nn.utils.parametrizations import weight_norm
 from layers import *
 
 class SAGL(nn.Module):
-    def __init__(self, input_dims, feature_dim, dropout, factor_divided):
+    def __init__(self, input_dims, feature_dim, dropout, factor_scaling):
         super(SAGL, self).__init__()
         self.encoders = nn.ModuleList()
         for input_dim in input_dims:
-            self.encoders.append(LinearEncoder(input_dim, feature_dim, dropout, factor_divided))
+            self.encoders.append(LinearEncoder(input_dim, feature_dim, dropout, factor_scaling))
 
     def forward(self, data_sets):
         label_set = []
